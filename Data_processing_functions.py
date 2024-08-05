@@ -14,10 +14,10 @@ def load_and_preprocess_image(image_path, target_size, is_grayscale=False):
 
 # Convert RGB image to LAB using TensorFlow
 def convert_to_lab(image):
-    image_np = image.numpy() * 255.0
+    image_np = image.numpy() * 255.0  # Convert to 0-255 range for OpenCV
     image_np = image_np.astype(np.uint8)
     lab_image = cv2.cvtColor(image_np, cv2.COLOR_RGB2LAB)
-    lab_image = lab_image.astype(np.float32) / 255.0
+    lab_image = lab_image.astype(np.float32) / 255.0  # Normalize to 0-1
     return lab_image
 
 # Wrapper to use convert_to_lab in TensorFlow pipeline
@@ -25,22 +25,6 @@ def preprocess_lab_image(image):
     lab_image = tf.py_function(func=convert_to_lab, inp=[image], Tout=tf.float32)
     lab_image.set_shape([None, None, 3])  # Set shape to avoid shape issues in TensorFlow
     return lab_image
-
-# Combine grayscale image with edges
-def combine_gray_and_edges(gray_img, lab_img):
-    def extract_edges(image):
-        edges = cv2.Canny((image * 255).astype(np.uint8), 100, 200)
-        return edges / 255.0
-    
-    combined_images = []
-    for i in range(gray_img.shape[0]):
-        single_gray = gray_img[i, :, :, 0].numpy()
-        edges = extract_edges(single_gray)
-        edges = tf.convert_to_tensor(edges, dtype=tf.float32)[..., tf.newaxis]
-        combined = tf.concat([tf.expand_dims(single_gray, axis=-1), edges], axis=-1)
-        combined_images.append(combined)
-    combined_batch = tf.stack(combined_images, axis=0)
-    return combined_batch, lab_img
 
 # Load and preprocess images
 def load_and_preprocess(gray_path, lab_path, target_size):
@@ -53,14 +37,40 @@ def load_and_preprocess(gray_path, lab_path, target_size):
 def create_dataset(gray_image_paths, lab_image_paths, target_size=(256, 256), batch_size=32):
     gray_image_paths = tf.constant(gray_image_paths, dtype=tf.string)
     lab_image_paths = tf.constant(lab_image_paths, dtype=tf.string)
+    
+    # Define the dataset from image paths
     dataset = tf.data.Dataset.from_tensor_slices((gray_image_paths, lab_image_paths))
+    
+    # Map the dataset to preprocess images
     dataset = dataset.map(lambda gray_path, lab_path: tf.py_function(
         func=lambda x, y: load_and_preprocess(x, y, target_size),
         inp=[gray_path, lab_path],
         Tout=[tf.float32, tf.float32]
     ), num_parallel_calls=tf.data.AUTOTUNE)
+    
     dataset = dataset.batch(batch_size).prefetch(tf.data.AUTOTUNE)
     return dataset
+
+# Extract edges from an image
+def extract_edges(image):
+    edges = cv2.Canny((image * 255).astype(np.uint8), 100, 200)
+    return edges / 255.0
+
+# Process a single grayscale image: extract edges and combine with the original image
+def process_single_image(gray_image):
+    edges = extract_edges(gray_image)
+    edges = tf.convert_to_tensor(edges, dtype=tf.float32)[..., tf.newaxis]
+    combined = tf.concat([tf.expand_dims(gray_image, axis=-1), edges], axis=-1)
+    return combined
+
+# Combine grayscale image with edges
+def combine_gray_and_edges(gray_img, lab_img):
+    combined_images = []
+    for i in range(gray_img.shape[0]):
+        single_gray = gray_img[i].numpy()  # Convert to NumPy array
+        combined_images.append(process_single_image(single_gray))
+    combined_batch = tf.stack(combined_images, axis=0)
+    return combined_batch, lab_img
 
 # Create dataset with edges
 def create_dataset_with_edges(original_dataset):
