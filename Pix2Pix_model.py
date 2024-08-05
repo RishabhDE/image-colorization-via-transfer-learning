@@ -8,6 +8,21 @@ from tensorflow.keras.layers import Input, Conv2D, Conv2DTranspose, concatenate,
 from tensorflow.keras.models import Model
 import matplotlib.pyplot as plt
 
+hyperparams = {
+    'initial_filters': 64,         # Starting number of filters in the first layer
+    'kernel_size': 4,              # Size of the convolutional kernel
+    'num_layers': 8,               # Number of convolutional layers
+    'dropout_rate': 0.5,           # Dropout rate for regularization
+    'batch_norm': True,            # Use of batch normalization
+    'lambda_l1': 100,              # L1 regularization parameter
+    'learning_rate': 2e-4,         # Learning rate for the optimizer
+    'beta_1': 0.5,                 # Beta1 hyperparameter for the Adam optimizer
+    'batch_size': 1,               # Batch size for training
+    'epochs': 150,                 # Number of epochs for training
+    'dropout': True,               # Whether to use dropout
+    'input_shape': (256, 256, 1)   # Input shape of the images (3 channels for RGB)
+}
+
 # Define the downsampling and upsampling blocks
 def downsample(filters, size, apply_batchnorm=True):
     initializer = tf.random_normal_initializer(0., 0.02)

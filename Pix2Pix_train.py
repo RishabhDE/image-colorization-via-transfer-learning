@@ -64,7 +64,8 @@ generator.summary()
 print("\nDiscriminator Summary:")
 discriminator.summary()
 
-# Define the optimizers
+
+# Define the optimizer
 generator_optimizer = tf.keras.optimizers.Adam(learning_rate=hyperparams['learning_rate'], beta_1=hyperparams['beta_1'])
 discriminator_optimizer = tf.keras.optimizers.Adam(learning_rate=hyperparams['learning_rate'], beta_1=hyperparams['beta_1'])
 
@@ -78,6 +79,14 @@ checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
                                  discriminator_optimizer=discriminator_optimizer,
                                  generator=generator,
                                  discriminator=discriminator)
+
+# Restore the latest checkpoint if it exists
+latest_checkpoint = tf.train.latest_checkpoint(checkpoint_dir)
+if latest_checkpoint:
+    checkpoint.restore(latest_checkpoint)
+    print(f"Restored from checkpoint: {latest_checkpoint}")
+else:
+    print("Starting fresh training")
 
 # Train the model
 gen_losses, disc_losses, val_gen_losses, val_psnrs = model_fit(train_dataset, val_dataset, hyperparams, checkpoint, checkpoint_prefix)
