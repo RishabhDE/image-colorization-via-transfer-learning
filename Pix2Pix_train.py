@@ -39,18 +39,18 @@ val_dataset = dataset.skip(train_size).take(val_size)
 # Example hyperparameters for testing
 # Hyperparameters
 hyperparams = {
-    'initial_filters': 64,
-    'kernel_size': 4,
-    'num_layers': 6,
-    'dropout_rate': 0.5,
-    'batch_norm': True,
-    'lambda_l1': 100,
-    'learning_rate': 2e-4,
-    'beta_1': 0.5,
-    'batch_size': 1,
-    'epochs': 50,
-    'dropout': True,
-    'input_shape': (256, 256, 1)  # Input shape added
+    'initial_filters': 64,         # Starting number of filters in the first layer
+    'kernel_size': 4,              # Size of the convolutional kernel
+    'num_layers': 8,               # Number of convolutional layers
+    'dropout_rate': 0.5,           # Dropout rate for regularization
+    'batch_norm': True,            # Use of batch normalization
+    'lambda_l1': 100,              # L1 regularization parameter
+    'learning_rate': 2e-4,         # Learning rate for the optimizer
+    'beta_1': 0.5,                 # Beta1 hyperparameter for the Adam optimizer
+    'batch_size': 1,               # Batch size for training
+    'epochs': 150,                 # Number of epochs for training
+    'dropout': True,               # Whether to use dropout
+    'input_shape': (256, 256, 1)   # Input shape of the images (3 channels for RGB)
 }
 
 # Initialize models
