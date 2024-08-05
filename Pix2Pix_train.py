@@ -40,15 +40,15 @@ val_dataset = dataset.skip(train_size).take(val_size)
 # Hyperparameters
 hyperparams = {
     'initial_filters': 64,         # Starting number of filters in the first layer
-    'kernel_size': 4,              # Size of the convolutional kernel
-    'num_layers': 8,               # Number of convolutional layers
+    'kernel_size': 5,              # Size of the convolutional kernel
+    'num_layers': 6,               # Number of convolutional layers
     'dropout_rate': 0.5,           # Dropout rate for regularization
     'batch_norm': True,            # Use of batch normalization
     'lambda_l1': 100,              # L1 regularization parameter
     'learning_rate': 2e-4,         # Learning rate for the optimizer
     'beta_1': 0.5,                 # Beta1 hyperparameter for the Adam optimizer
     'batch_size': 1,               # Batch size for training
-    'epochs': 150,                 # Number of epochs for training
+    'epochs': 100,                 # Number of epochs for training
     'dropout': True,               # Whether to use dropout
     'input_shape': (256, 256, 1)   # Input shape of the images (3 channels for RGB)
 }
@@ -64,7 +64,8 @@ generator.summary()
 print("\nDiscriminator Summary:")
 discriminator.summary()
 
-# Define the optimizers
+
+# Define the optimizer
 generator_optimizer = tf.keras.optimizers.Adam(learning_rate=hyperparams['learning_rate'], beta_1=hyperparams['beta_1'])
 discriminator_optimizer = tf.keras.optimizers.Adam(learning_rate=hyperparams['learning_rate'], beta_1=hyperparams['beta_1'])
 
@@ -78,6 +79,14 @@ checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
                                  discriminator_optimizer=discriminator_optimizer,
                                  generator=generator,
                                  discriminator=discriminator)
+
+# Restore the latest checkpoint if it exists
+latest_checkpoint = tf.train.latest_checkpoint(checkpoint_dir)
+if latest_checkpoint:
+    checkpoint.restore(latest_checkpoint)
+    print(f"Restored from checkpoint: {latest_checkpoint}")
+else:
+    print("Starting fresh training")
 
 # Train the model
 gen_losses, disc_losses, val_gen_losses, val_psnrs = model_fit(train_dataset, val_dataset, hyperparams, checkpoint, checkpoint_prefix)
