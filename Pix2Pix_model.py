@@ -10,15 +10,15 @@ import matplotlib.pyplot as plt
 
 hyperparams = {
     'initial_filters': 64,         # Starting number of filters in the first layer
-    'kernel_size': 4,              # Size of the convolutional kernel
-    'num_layers': 8,               # Number of convolutional layers
+    'kernel_size': 5,              # Size of the convolutional kernel
+    'num_layers': 6,               # Number of convolutional layers
     'dropout_rate': 0.5,           # Dropout rate for regularization
     'batch_norm': True,            # Use of batch normalization
     'lambda_l1': 100,              # L1 regularization parameter
     'learning_rate': 2e-4,         # Learning rate for the optimizer
     'beta_1': 0.5,                 # Beta1 hyperparameter for the Adam optimizer
     'batch_size': 1,               # Batch size for training
-    'epochs': 150,                 # Number of epochs for training
+    'epochs': 100,                 # Number of epochs for training
     'dropout': True,               # Whether to use dropout
     'input_shape': (256, 256, 1)   # Input shape of the images (3 channels for RGB)
 }
@@ -114,7 +114,7 @@ def psnr_metric(y_true, y_pred):
     return tf.reduce_mean(psnr_value)
 
 # Training step function
-def train_step(generator, discriminator, input_image, target):
+def train_step(generator, discriminator, input_image, target, generator_optimizer, discriminator_optimizer):
     with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
         gen_output = generator(input_image, training=True)
         disc_real_output = discriminator([input_image, target], training=True)
@@ -173,7 +173,7 @@ def model_fit(train_ds, val_ds, hyperparams, checkpoint, checkpoint_prefix):
         progbar = tf.keras.utils.Progbar(len(train_ds), stateful_metrics=['loss'])
         
         for step, (input_image, target) in enumerate(train_ds):
-            gen_total_loss, disc_loss = train_step(generator, discriminator, input_image, target)
+            gen_total_loss, disc_loss = train_step(generator, discriminator, input_image, target, generator_optimizer, discriminator_optimizer)
             epoch_gen_loss += gen_total_loss
             epoch_disc_loss += disc_loss
 
@@ -218,6 +218,3 @@ def visualize_losses(gen_losses, disc_losses, val_gen_losses, val_psnrs):
 
     plt.tight_layout()
     plt.show()
-
-
-   
