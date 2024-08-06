@@ -9,7 +9,7 @@ from tensorflow.keras.models import Model
 import matplotlib.pyplot as plt
 
 hyperparams = {
-    'initial_filters': 64,         # Starting number of filters in the first layer
+    'initial_filters': 48,         # Starting number of filters in the first layer
     'kernel_size': 5,              # Size of the convolutional kernel
     'num_layers': 5,               # Number of convolutional layers
     'dropout_rate': 0.5,           # Dropout rate for regularization
@@ -106,10 +106,11 @@ def discriminator_loss(disc_real_output, disc_generated_output):
     total_disc_loss = real_loss + generated_loss
     return total_disc_loss
 
-# PSNR metric
 def psnr_metric(y_true, y_pred):
     max_pixel = 1.0
-    psnr_value = tf.image.psnr(y_true, y_pred, max_val=max_pixel)
+    # Add a small constant to max_pixel if needed, to avoid zero division errors
+    epsilon = 1e-10
+    psnr_value = tf.image.psnr(y_true, y_pred, max_val=max_pixel + epsilon)
     return tf.reduce_mean(psnr_value)
 
 # Training step function
@@ -130,7 +131,6 @@ def train_step(generator, discriminator, input_image, target, generator_optimize
 
     return gen_total_loss, disc_loss
 
-# Define the evaluation function
 def evaluate_model(dataset, generator, discriminator):
     total_gen_loss = 0
     total_psnr = 0
@@ -145,11 +145,16 @@ def evaluate_model(dataset, generator, discriminator):
         psnr_value = psnr_metric(target, gen_output)
         total_psnr += psnr_value
         num_batches += 1
-    avg_gen_loss = tf.math.divide_no_nan(total_gen_loss, num_batches)
-    avg_psnr = tf.math.divide_no_nan(total_psnr, num_batches)
+
+    if num_batches == 0:
+        return 0, 0  # Handle the case where there are no batches
+
+    avg_gen_loss = total_gen_loss / num_batches
+    avg_psnr = total_psnr / num_batches
     return avg_gen_loss, avg_psnr
 
-# Training function with validation loss
+
+# Training function with validation loss and callbacks
 def model_fit(train_ds, val_ds, hyperparams, checkpoint, checkpoint_prefix):
     gen_losses = []
     disc_losses = []
@@ -162,6 +167,10 @@ def model_fit(train_ds, val_ds, hyperparams, checkpoint, checkpoint_prefix):
     # Define the optimizers
     generator_optimizer = tf.keras.optimizers.Adam(learning_rate=hyperparams['learning_rate'], beta_1=hyperparams['beta_1'])
     discriminator_optimizer = tf.keras.optimizers.Adam(learning_rate=hyperparams['learning_rate'], beta_1=hyperparams['beta_1'])
+
+    # Define callbacks
+    early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
+    model_checkpoint = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_prefix, save_best_only=True, monitor='val_loss', mode='min')
 
     for epoch in range(hyperparams['epochs']):
         start = time.time()
@@ -179,15 +188,19 @@ def model_fit(train_ds, val_ds, hyperparams, checkpoint, checkpoint_prefix):
             # Update progress bar
             progbar.update(step + 1, [('gen_loss', gen_total_loss), ('disc_loss', disc_loss)])
 
-        gen_losses.append(epoch_gen_loss / len(train_ds)+1)
-        disc_losses.append(epoch_disc_loss / len(train_ds)+1)
+        gen_losses.append(epoch_gen_loss / (step + 1))     
+        disc_losses.append(epoch_disc_loss / (step + 1))
 
         val_gen_loss, val_psnr = evaluate_model(val_ds, generator, discriminator)
         val_gen_losses.append(val_gen_loss)
         val_psnrs.append(val_psnr)
 
-        # Save checkpoint
-        checkpoint.save(file_prefix=checkpoint_prefix)
+        # Execute callbacks
+        early_stopping.on_epoch_end(epoch, logs={'val_loss': val_gen_loss})
+        model_checkpoint.on_epoch_end(epoch, logs={'val_loss': val_gen_loss})
+
+        if early_stopping.stopped_epoch:
+            break
 
         print(f'Epoch {epoch+1}, Gen Loss: {gen_losses[-1]}, Disc Loss: {disc_losses[-1]}, Val Gen Loss: {val_gen_losses[-1]}, Val PSNR: {val_psnrs[-1]}, Time: {time.time() - start}')
 

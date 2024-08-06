@@ -2,12 +2,11 @@ import tensorflow as tf
 import numpy as np
 import cv2
 import os
-import glob
 import time
-import matplotlib.pyplot as plt
-from PIL import Image
+import glob
 from tensorflow.keras.layers import Input, Conv2D, Conv2DTranspose, concatenate, BatchNormalization, LeakyReLU, ReLU
 from tensorflow.keras.models import Model
+import matplotlib.pyplot as plt
 
 from Data_processing_functions import *
 from Pix2Pix_model import *
@@ -39,7 +38,7 @@ val_dataset = dataset.skip(train_size).take(val_size)
 # Example hyperparameters for testing
 # Hyperparameters
 hyperparams = {
-    'initial_filters': 64,         # Starting number of filters in the first layer
+    'initial_filters': 48,         # Starting number of filters in the first layer
     'kernel_size': 5,              # Size of the convolutional kernel
     'num_layers': 5,               # Number of convolutional layers
     'dropout_rate': 0.5,           # Dropout rate for regularization
@@ -50,7 +49,7 @@ hyperparams = {
     'batch_size': 1,               # Batch size for training
     'epochs': 50,                 # Number of epochs for training
     'dropout': True,               # Whether to use dropout
-    'input_shape': (256, 256, 1)   # Input shape of the images (3 channels for RGB)
+    'input_shape': (256, 256, 1)   # Input shape of the images (1 channel for grayscale)
 }
 
 # Initialize models
@@ -92,8 +91,8 @@ else:
 gen_losses, disc_losses, val_gen_losses, val_psnrs = model_fit(train_dataset, val_dataset, hyperparams, checkpoint, checkpoint_prefix)
 
 # Save the models
-generator.save('pix2pix_model_generator.h5')
-discriminator.save('pix2pix_model_discriminator.h5')
+generator.save('pix2pix_model_generator.keras')
+discriminator.save('pix2pix_model_discriminator.keras')
 
 # Visualize losses
 visualize_losses(gen_losses, disc_losses, val_gen_losses, val_psnrs)
