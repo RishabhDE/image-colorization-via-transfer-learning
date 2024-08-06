@@ -71,7 +71,7 @@ discriminator_optimizer = tf.keras.optimizers.Adam(learning_rate=hyperparams['le
 # Define the checkpoint directory
 checkpoint_dir = './training_checkpoints'
 os.makedirs(checkpoint_dir, exist_ok=True)
-checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
+checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt.keras")  # Updated to end with .keras
 
 # Create a checkpoint object
 checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
@@ -86,6 +86,10 @@ if latest_checkpoint:
     print(f"Restored from checkpoint: {latest_checkpoint}")
 else:
     print("Starting fresh training")
+
+# Define callbacks
+early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
+model_checkpoint = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_prefix, save_best_only=True, monitor='val_loss', mode='min')
 
 # Train the model
 gen_losses, disc_losses, val_gen_losses, val_psnrs = model_fit(train_dataset, val_dataset, hyperparams, checkpoint_prefix)
