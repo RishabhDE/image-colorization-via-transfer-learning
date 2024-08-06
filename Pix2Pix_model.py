@@ -67,7 +67,6 @@ def Generator(hyperparams):
 
     return tf.keras.Model(inputs=inputs, outputs=x)
 
-
 # Define the Discriminator model
 def Discriminator(hyperparams):
     initializer = tf.random_normal_initializer(0., 0.02)
@@ -146,8 +145,8 @@ def evaluate_model(dataset, generator, discriminator):
         psnr_value = psnr_metric(target, gen_output)
         total_psnr += psnr_value
         num_batches += 1
-    avg_gen_loss = total_gen_loss / num_batches
-    avg_psnr = total_psnr / num_batches
+    avg_gen_loss = tf.math.divide_no_nan(total_gen_loss, num_batches)
+    avg_psnr = tf.math.divide_no_nan(total_psnr, num_batches)
     return avg_gen_loss, avg_psnr
 
 # Training function with validation loss
@@ -180,8 +179,8 @@ def model_fit(train_ds, val_ds, hyperparams, checkpoint, checkpoint_prefix):
             # Update progress bar
             progbar.update(step + 1, [('gen_loss', gen_total_loss), ('disc_loss', disc_loss)])
 
-        gen_losses.append(epoch_gen_loss / len(train_ds))
-        disc_losses.append(epoch_disc_loss / len(train_ds))
+        gen_losses.append(epoch_gen_loss / len(train_ds)+1)
+        disc_losses.append(epoch_disc_loss / len(train_ds)+1)
 
         val_gen_loss, val_psnr = evaluate_model(val_ds, generator, discriminator)
         val_gen_losses.append(val_gen_loss)
