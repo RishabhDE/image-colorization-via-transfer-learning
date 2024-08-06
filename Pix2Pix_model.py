@@ -1,27 +1,22 @@
 import tensorflow as tf
 import numpy as np
-import cv2
-import os
 import time
-import glob
-from tensorflow.keras.layers import Input, Conv2D, Conv2DTranspose, concatenate, BatchNormalization, LeakyReLU, ReLU, Dropout
-from tensorflow.keras.models import Model
 import matplotlib.pyplot as plt
 
 # Hyperparameters
 hyperparams = {
-    'initial_filters': 48,         # Starting number of filters in the first layer
-    'kernel_size': 5,              # Size of the convolutional kernel
-    'num_layers': 5,               # Number of convolutional layers
-    'dropout_rate': 0.5,           # Dropout rate for regularization
-    'batch_norm': True,            # Use of batch normalization
-    'lambda_l1': 100,              # L1 regularization parameter
-    'learning_rate': 1e-3,         # Learning rate for the optimizer
-    'beta_1': 0.5,                 # Beta1 hyperparameter for the Adam optimizer
-    'batch_size': 1,               # Batch size for training
-    'epochs': 50,                  # Number of epochs for training
-    'dropout': True,               # Whether to use dropout
-    'input_shape': (256, 256, 3)   # Input shape of the images (3 channels for color)
+    'initial_filters': 48,
+    'kernel_size': 5,
+    'num_layers': 5,
+    'dropout_rate': 0.5,
+    'batch_norm': True,
+    'lambda_l1': 100,
+    'learning_rate': 1e-3,
+    'beta_1': 0.5,
+    'batch_size': 1,
+    'epochs': 50,
+    'dropout': True,
+    'input_shape': (256, 256, 1)
 }
 
 # Define the downsampling and upsampling blocks
@@ -51,7 +46,7 @@ def Generator(hyperparams):
     down_stack = [downsample(hyperparams['initial_filters'] * (2 ** i), hyperparams['kernel_size'], apply_batchnorm=hyperparams['batch_norm']) for i in range(hyperparams['num_layers'])]
     up_stack = [upsample(hyperparams['initial_filters'] * (2 ** i), hyperparams['kernel_size'], apply_dropout=hyperparams['dropout']) for i in range(hyperparams['num_layers']-1, 0, -1)]
     initializer = tf.random_normal_initializer(0., 0.02)
-    last = tf.keras.layers.Conv2DTranspose(3, hyperparams['kernel_size'], strides=2, padding='same', kernel_initializer=initializer, activation='tanh')  # Output channels for color
+    last = tf.keras.layers.Conv2DTranspose(3, hyperparams['kernel_size'], strides=2, padding='same', kernel_initializer=initializer, activation='tanh')
 
     x = inputs
     skips = []
@@ -73,7 +68,7 @@ def Discriminator(hyperparams):
     initializer = tf.random_normal_initializer(0., 0.02)
     
     inp = tf.keras.layers.Input(shape=hyperparams['input_shape'], name='input_image')
-    tar = tf.keras.layers.Input(shape=[*hyperparams['input_shape'][:2], 3], name='target_image')  # Output channels for color
+    tar = tf.keras.layers.Input(shape=[*hyperparams['input_shape'][:2], 3], name='target_image')
 
     x = tf.keras.layers.concatenate([inp, tar])
 
@@ -146,12 +141,16 @@ def evaluate_model(dataset, generator, discriminator):
         psnr_value = psnr_metric(target, gen_output)
         total_psnr += psnr_value
         num_batches += 1
+
+    if num_batches == 0:
+        raise ValueError("Validation dataset is empty or not iterable.")
+        
     avg_gen_loss = total_gen_loss / num_batches
     avg_psnr = total_psnr / num_batches
     return avg_gen_loss, avg_psnr
 
 # Training function with validation loss and callbacks
-def model_fit(train_ds, val_ds, hyperparams, checkpoint, checkpoint_prefix):
+def model_fit(train_ds, val_ds, hyperparams, checkpoint_prefix):
     gen_losses = []
     disc_losses = []
     val_gen_losses = []
@@ -167,6 +166,8 @@ def model_fit(train_ds, val_ds, hyperparams, checkpoint, checkpoint_prefix):
     # Define callbacks
     early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
     model_checkpoint = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_prefix + '.keras', save_best_only=True, monitor='val_loss', mode='min')
+
+    checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer, discriminator_optimizer=discriminator_optimizer, generator=generator, discriminator=discriminator)
 
     for epoch in range(hyperparams['epochs']):
         start = time.time()
@@ -198,6 +199,9 @@ def model_fit(train_ds, val_ds, hyperparams, checkpoint, checkpoint_prefix):
 
         # Early stopping
         early_stopping.on_epoch_end(epoch, logs={'val_loss': val_gen_loss})
+
+        # Model checkpointing
+        model_checkpoint.on_epoch_end(epoch, logs={'val_loss': val_gen_loss})
 
     return gen_losses, disc_losses, val_gen_losses, val_psnrs
 

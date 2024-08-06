@@ -12,7 +12,7 @@ def load_and_preprocess_image(image_path, target_size, is_grayscale=False):
     img = img / 255.0
     return img
 
-# Convert RGB image to LAB using TensorFlow
+# Convert RGB image to LAB using OpenCV (requires numpy conversion)
 def convert_to_lab(image):
     image_np = image.numpy() * 255.0  # Convert to 0-255 range for OpenCV
     image_np = image_np.astype(np.uint8)
@@ -42,45 +42,49 @@ def create_dataset(gray_image_paths, lab_image_paths, target_size=(256, 256), ba
     dataset = tf.data.Dataset.from_tensor_slices((gray_image_paths, lab_image_paths))
     
     # Map the dataset to preprocess images
-    dataset = dataset.map(lambda gray_path, lab_path: tf.py_function(
-        func=lambda x, y: load_and_preprocess(x, y, target_size),
-        inp=[gray_path, lab_path],
-        Tout=[tf.float32, tf.float32]
-    ), num_parallel_calls=tf.data.AUTOTUNE)
+    def map_fn(gray_path, lab_path):
+        gray_img, lab_img = tf.py_function(
+            func=lambda x, y: load_and_preprocess(x, y, target_size),
+            inp=[gray_path, lab_path],
+            Tout=[tf.float32, tf.float32]
+        )
+        gray_img.set_shape([target_size[0], target_size[1], 1])
+        lab_img.set_shape([target_size[0], target_size[1], 3])
+        return gray_img, lab_img
     
+    dataset = dataset.map(map_fn, num_parallel_calls=tf.data.AUTOTUNE)
     dataset = dataset.batch(batch_size).prefetch(tf.data.AUTOTUNE)
     return dataset
 
-# Extract edges from an image
-def extract_edges(image):
-    edges = cv2.Canny((image * 255).astype(np.uint8), 100, 200)
-    return edges / 255.0
+# # Extract edges from an image
+# def extract_edges(image):
+#     edges = cv2.Canny((image * 255).astype(np.uint8), 100, 200)
+#     return edges / 255.0
 
-# Process a single grayscale image: extract edges and combine with the original image
-def process_single_image(gray_image):
-    edges = extract_edges(gray_image)
-    edges = tf.convert_to_tensor(edges, dtype=tf.float32)[..., tf.newaxis]
-    combined = tf.concat([tf.expand_dims(gray_image, axis=-1), edges], axis=-1)
-    return combined
+# # Process a single grayscale image: extract edges and combine with the original image
+# def process_single_image(gray_image):
+#     edges = extract_edges(gray_image)
+#     edges = tf.convert_to_tensor(edges, dtype=tf.float32)[..., tf.newaxis]
+#     combined = tf.concat([tf.expand_dims(gray_image, axis=-1), edges], axis=-1)
+#     return combined
 
-# Combine grayscale image with edges
-def combine_gray_and_edges(gray_img, lab_img):
-    combined_images = []
-    for i in range(gray_img.shape[0]):
-        single_gray = gray_img[i].numpy()  # Convert to NumPy array
-        combined_images.append(process_single_image(single_gray))
-    combined_batch = tf.stack(combined_images, axis=0)
-    return combined_batch, lab_img
+# # Combine grayscale image with edges
+# def combine_gray_and_edges(gray_img, lab_img):
+#     combined_images = []
+#     for i in range(gray_img.shape[0]):
+#         single_gray = gray_img[i].numpy()  # Convert to NumPy array
+#         combined_images.append(process_single_image(single_gray))
+#     combined_batch = tf.stack(combined_images, axis=0)
+#     return combined_batch, lab_img
 
-# Create dataset with edges
-def create_dataset_with_edges(original_dataset):
-    dataset_with_edges = original_dataset.map(
-        lambda gray_img, lab_img: tf.py_function(
-            func=lambda x, y: combine_gray_and_edges(x, y),
-            inp=[gray_img, lab_img],
-            Tout=[tf.float32, tf.float32]
-        ),
-        num_parallel_calls=tf.data.AUTOTUNE
-    )
-    return dataset_with_edges
-
+# # Create dataset with edges
+# def create_dataset_with_edges(original_dataset):
+#     dataset_with_edges = original_dataset.map(
+#         lambda gray_img, lab_img: tf.py_function(
+#             func=lambda x, y: combine_gray_and_edges(x, y),
+#             inp=[gray_img, lab_img],
+#             Tout=[tf.float32, tf.float32]
+#         ),
+#         num_parallel_calls=tf.data.AUTOTUNE
+#     )
+#     return dataset_with_edges
