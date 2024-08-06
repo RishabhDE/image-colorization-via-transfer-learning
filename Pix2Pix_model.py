@@ -8,6 +8,7 @@ from tensorflow.keras.layers import Input, Conv2D, Conv2DTranspose, concatenate,
 from tensorflow.keras.models import Model
 import matplotlib.pyplot as plt
 
+# Hyperparameters
 hyperparams = {
     'initial_filters': 48,         # Starting number of filters in the first layer
     'kernel_size': 5,              # Size of the convolutional kernel
@@ -50,7 +51,7 @@ def Generator(hyperparams):
     down_stack = [downsample(hyperparams['initial_filters'] * (2 ** i), hyperparams['kernel_size'], apply_batchnorm=hyperparams['batch_norm']) for i in range(hyperparams['num_layers'])]
     up_stack = [upsample(hyperparams['initial_filters'] * (2 ** i), hyperparams['kernel_size'], apply_dropout=hyperparams['dropout']) for i in range(hyperparams['num_layers']-1, 0, -1)]
     initializer = tf.random_normal_initializer(0., 0.02)
-    last = Conv2DTranspose(1, hyperparams['kernel_size'], strides=2, padding='same', kernel_initializer=initializer, activation='tanh')  # Changed to 1 channel for grayscale
+    last = Conv2DTranspose(1, hyperparams['kernel_size'], strides=2, padding='same', kernel_initializer=initializer, activation='tanh')  # Output channels for grayscale
 
     x = inputs
     skips = []
@@ -72,7 +73,7 @@ def Discriminator(hyperparams):
     initializer = tf.random_normal_initializer(0., 0.02)
     
     inp = Input(shape=hyperparams['input_shape'], name='input_image')
-    tar = Input(shape=[*hyperparams['input_shape'][:2], 1], name='target_image')  # Changed to 1 channel for grayscale
+    tar = Input(shape=[*hyperparams['input_shape'][:2], 1], name='target_image')  # Output channels for grayscale
 
     x = concatenate([inp, tar])
 
@@ -108,8 +109,7 @@ def discriminator_loss(disc_real_output, disc_generated_output):
 
 def psnr_metric(y_true, y_pred):
     max_pixel = 1.0  # Ensure this matches the scale of your images
-    epsilon = 1e-10
-    psnr_value = tf.image.psnr(y_true, y_pred, max_val=max_pixel + epsilon)
+    psnr_value = tf.image.psnr(y_true, y_pred, max_val=max_pixel)
     return tf.reduce_mean(psnr_value)
 
 # Training step function
@@ -228,3 +228,10 @@ def visualize_losses(gen_losses, disc_losses, val_gen_losses, val_psnrs):
 
     plt.tight_layout()
     plt.show()
+
+# Example usage (ensure datasets and paths are properly defined):
+# train_ds = ... # Your training dataset
+# val_ds = ...   # Your validation dataset
+# checkpoint_prefix = 'path/to/checkpoint'
+# gen_losses, disc_losses, val_gen_losses, val_psnrs = model_fit(train_ds, val_ds, hyperparams, checkpoint_prefix)
+# visualize_losses(gen_losses, disc_losses, val_gen_losses, val_psnrs)
