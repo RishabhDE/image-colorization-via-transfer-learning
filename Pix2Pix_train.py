@@ -76,8 +76,8 @@ checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
 # Create a checkpoint object
 checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
                                  discriminator_optimizer=discriminator_optimizer,
-                                 generator=generator,
-                                 discriminator=discriminator)
+                                 generator=Generator(hyperparams),  # Ensure Generator and Discriminator are initialized
+                                 discriminator=Discriminator(hyperparams))
 
 # Restore the latest checkpoint if it exists
 latest_checkpoint = tf.train.latest_checkpoint(checkpoint_dir)
@@ -88,9 +88,11 @@ else:
     print("Starting fresh training")
 
 # Train the model
-gen_losses, disc_losses, val_gen_losses, val_psnrs = model_fit(train_dataset, val_dataset, hyperparams, checkpoint, checkpoint_prefix)
+gen_losses, disc_losses, val_gen_losses, val_psnrs = model_fit(train_dataset, val_dataset, hyperparams, checkpoint_prefix)
 
 # Save the models
+generator = Generator(hyperparams)
+discriminator = Discriminator(hyperparams)
 generator.save('pix2pix_model_generator.keras')
 discriminator.save('pix2pix_model_discriminator.keras')
 
