@@ -5,11 +5,8 @@ import os
 import glob
 import time
 import matplotlib.pyplot as plt
-from PIL import Image
 from tensorflow.keras.layers import Input, Conv2D, Conv2DTranspose, concatenate, BatchNormalization, LeakyReLU, ReLU
 from tensorflow.keras.models import Model
-
-
 
 # Hyperparameters
 hyperparams = {
@@ -134,36 +131,10 @@ def train_step(generator, discriminator, input_image, target, generator_optimize
 
     return gen_total_loss, disc_loss
 
-# Define the evaluation function
-def evaluate_model(dataset, generator, discriminator):
-    total_gen_loss = 0
-    total_psnr = 0
-    num_batches = 0
-
-    for input_image, target in dataset:
-        gen_output = generator(input_image, training=False)
-        disc_generated_output = discriminator([input_image, gen_output], training=False)
-        gen_total_loss, _, _ = generator_loss(disc_generated_output, gen_output, target)
-        total_gen_loss += gen_total_loss
-
-        # Compute PSNR
-        psnr_value = psnr_metric(target, gen_output)
-        total_psnr += psnr_value
-        num_batches += 1
-
-    if num_batches == 0:
-        raise ValueError("Validation dataset is empty or not iterable.")
-        
-    avg_gen_loss = total_gen_loss / num_batches
-    avg_psnr = total_psnr / num_batches
-    return avg_gen_loss, avg_psnr
-
-# Training function with validation loss and callbacks
-def model_fit(train_ds, val_ds, hyperparams, checkpoint_prefix):
+# Training function without validation
+def model_fit(train_ds, hyperparams, checkpoint_prefix):
     gen_losses = []
     disc_losses = []
-    val_gen_losses = []
-    val_psnrs = []
 
     generator = Generator(hyperparams)
     discriminator = Discriminator(hyperparams)
@@ -197,43 +168,30 @@ def model_fit(train_ds, val_ds, hyperparams, checkpoint_prefix):
         gen_losses.append(epoch_gen_loss / len(train_ds))
         disc_losses.append(epoch_disc_loss / len(train_ds))
 
-        val_gen_loss, val_psnr = evaluate_model(val_ds, generator, discriminator)
-        val_gen_losses.append(val_gen_loss)
-        val_psnrs.append(val_psnr)
-
         # Save checkpoint
         checkpoint.save(file_prefix=checkpoint_prefix)
 
-        print(f'Epoch {epoch+1}, Gen Loss: {gen_losses[-1]}, Disc Loss: {disc_losses[-1]}, Val Gen Loss: {val_gen_losses[-1]}, Val PSNR: {val_psnrs[-1]}, Time: {time.time() - start}')
+        print(f'Epoch {epoch+1}, Gen Loss: {gen_losses[-1]}, Disc Loss: {disc_losses[-1]}, Time: {time.time() - start}')
 
         # Early stopping logic
-        if len(val_gen_losses) > 1 and val_gen_losses[-1] > val_gen_losses[-2]:
+        if len(gen_losses) > 1 and gen_losses[-1] > gen_losses[-2]:
             print("Early stopping triggered")
             break
 
-    return gen_losses, disc_losses, val_gen_losses, val_psnrs
+    return gen_losses, disc_losses
 
 # Visualize losses
-def visualize_losses(gen_losses, disc_losses, val_gen_losses, val_psnrs):
+def visualize_losses(gen_losses, disc_losses):
     plt.figure(figsize=(12, 6))
     
     # Plot Generator and Discriminator Losses
-    plt.subplot(1, 2, 1)
+    plt.subplot(1, 1, 1)
     plt.plot(gen_losses, label='Generator Loss')
     plt.plot(disc_losses, label='Discriminator Loss')
-    plt.plot(val_gen_losses, label='Validation Generator Loss')
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
     plt.legend()
     plt.title('Generator and Discriminator Losses')
-
-    # Plot Validation PSNR
-    plt.subplot(1, 2, 2)
-    plt.plot(val_psnrs, label='Validation PSNR')
-    plt.xlabel('Epoch')
-    plt.ylabel('PSNR')
-    plt.legend()
-    plt.title('Validation PSNR')
 
     plt.tight_layout()
     plt.show()

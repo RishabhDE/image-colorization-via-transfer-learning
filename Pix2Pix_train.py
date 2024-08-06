@@ -29,8 +29,8 @@ hyperparams = {
 
 # Define Data Directory
 dir_path = 'data'
-color_dir = os.path.join(dir_path, 'train_color')
-black_dir = os.path.join(dir_path, 'train_black')
+color_dir = os.path.join(dir_path, 'train_color')[:32]
+black_dir = os.path.join(dir_path, 'train_black')[:32]
 
 # List all images
 color_images_paths = glob.glob(os.path.join(color_dir, '*.jpg'))
@@ -43,21 +43,8 @@ if not color_images_paths or not black_images_paths:
 # Create dataset
 dataset = create_dataset(black_images_paths, color_images_paths, target_size=(256, 256), batch_size=hyperparams['batch_size'])
 
-# Calculate the total number of elements in the dataset
-total_size = len(color_images_paths)
-train_size = int(total_size * 0.9)
-val_size = total_size - train_size
-
 # Shuffle the dataset
-dataset = dataset.shuffle(buffer_size=total_size, reshuffle_each_iteration=True)
-
-# Split dataset into training and validation
-train_dataset = dataset.take(train_size)
-val_dataset = dataset.skip(train_size).take(val_size)
-
-# Ensure the validation dataset is not empty
-if val_size == 0:
-    raise ValueError("Validation dataset is empty. Please check the dataset split.")
+dataset = dataset.shuffle(buffer_size=len(color_images_paths), reshuffle_each_iteration=True)
 
 # Initialize models
 generator = Generator(hyperparams)
@@ -93,16 +80,62 @@ if latest_checkpoint:
 else:
     print("Starting fresh training")
 
-# Define callbacks
-early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
-model_checkpoint = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_prefix + '.keras', save_best_only=True, monitor='val_loss', mode='min')
+# Training function without validation
+def model_fit(train_ds, hyperparams, checkpoint_prefix):
+    gen_losses = []
+    disc_losses = []
+
+    for epoch in range(hyperparams['epochs']):
+        start = time.time()
+        epoch_gen_loss = 0
+        epoch_disc_loss = 0
+
+        # Progress bar
+        progbar = tf.keras.utils.Progbar(len(train_ds), stateful_metrics=['loss'])
+
+        for step, (input_image, target) in enumerate(train_ds):
+            gen_total_loss, disc_loss = train_step(generator, discriminator, input_image, target, generator_optimizer, discriminator_optimizer)
+            epoch_gen_loss += gen_total_loss
+            epoch_disc_loss += disc_loss
+
+            # Update progress bar
+            progbar.update(step + 1, [('gen_loss', gen_total_loss), ('disc_loss', disc_loss)])
+
+        gen_losses.append(epoch_gen_loss / len(train_ds))
+        disc_losses.append(epoch_disc_loss / len(train_ds))
+
+        # Save checkpoint
+        checkpoint.save(file_prefix=checkpoint_prefix)
+
+        print(f'Epoch {epoch+1}, Gen Loss: {gen_losses[-1]}, Disc Loss: {disc_losses[-1]}, Time: {time.time() - start}')
+
+        # Early stopping logic
+        if len(gen_losses) > 1 and gen_losses[-1] > gen_losses[-2]:
+            print("Early stopping triggered")
+            break
+
+    return gen_losses, disc_losses
 
 # Train the model
-gen_losses, disc_losses, val_gen_losses, val_psnrs = model_fit(train_dataset, val_dataset, hyperparams, checkpoint_prefix)
+gen_losses, disc_losses = model_fit(dataset, hyperparams, checkpoint_prefix)
 
 # Save the models
 generator.save('pix2pix_model_generator.keras')
 discriminator.save('pix2pix_model_discriminator.keras')
 
 # Visualize losses
-visualize_losses(gen_losses, disc_losses, val_gen_losses, val_psnrs)
+def visualize_losses(gen_losses, disc_losses):
+    plt.figure(figsize=(12, 6))
+    
+    # Plot Generator and Discriminator Losses
+    plt.plot(gen_losses, label='Generator Loss')
+    plt.plot(disc_losses, label='Discriminator Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.title('Generator and Discriminator Losses')
+
+    plt.tight_layout()
+    plt.show()
+
+visualize_losses(gen_losses, disc_losses)
