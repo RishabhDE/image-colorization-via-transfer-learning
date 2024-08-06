@@ -36,6 +36,10 @@ black_dir = os.path.join(dir_path, 'train_black')
 color_images_paths = glob.glob(os.path.join(color_dir, '*.jpg'))
 black_images_paths = glob.glob(os.path.join(black_dir, '*.jpg'))
 
+# Ensure there are images in both directories
+if not color_images_paths or not black_images_paths:
+    raise ValueError("No images found in one or both directories.")
+
 # Create dataset
 dataset = create_dataset(black_images_paths, color_images_paths, target_size=(256, 256), batch_size=hyperparams['batch_size'])
 
@@ -102,4 +106,3 @@ discriminator.save('pix2pix_model_discriminator.keras')
 
 # Visualize losses
 visualize_losses(gen_losses, disc_losses, val_gen_losses, val_psnrs)
-

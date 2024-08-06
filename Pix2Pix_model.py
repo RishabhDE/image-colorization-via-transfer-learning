@@ -1,7 +1,15 @@
 import tensorflow as tf
 import numpy as np
+import cv2
+import os
+import glob
 import time
 import matplotlib.pyplot as plt
+from PIL import Image
+from tensorflow.keras.layers import Input, Conv2D, Conv2DTranspose, concatenate, BatchNormalization, LeakyReLU, ReLU
+from tensorflow.keras.models import Model
+
+
 
 # Hyperparameters
 hyperparams = {
@@ -131,6 +139,7 @@ def evaluate_model(dataset, generator, discriminator):
     total_gen_loss = 0
     total_psnr = 0
     num_batches = 0
+
     for input_image, target in dataset:
         gen_output = generator(input_image, training=False)
         disc_generated_output = discriminator([input_image, gen_output], training=False)
@@ -163,11 +172,11 @@ def model_fit(train_ds, val_ds, hyperparams, checkpoint_prefix):
     generator_optimizer = tf.keras.optimizers.Adam(learning_rate=hyperparams['learning_rate'], beta_1=hyperparams['beta_1'])
     discriminator_optimizer = tf.keras.optimizers.Adam(learning_rate=hyperparams['learning_rate'], beta_1=hyperparams['beta_1'])
 
-    # Define callbacks
-    early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
-    model_checkpoint = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_prefix + '.keras', save_best_only=True, monitor='val_loss', mode='min')
-
-    checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer, discriminator_optimizer=discriminator_optimizer, generator=generator, discriminator=discriminator)
+    # Define checkpoints
+    checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
+                                     discriminator_optimizer=discriminator_optimizer,
+                                     generator=generator,
+                                     discriminator=discriminator)
 
     for epoch in range(hyperparams['epochs']):
         start = time.time()
@@ -176,7 +185,7 @@ def model_fit(train_ds, val_ds, hyperparams, checkpoint_prefix):
 
         # Progress bar
         progbar = tf.keras.utils.Progbar(len(train_ds), stateful_metrics=['loss'])
-        
+
         for step, (input_image, target) in enumerate(train_ds):
             gen_total_loss, disc_loss = train_step(generator, discriminator, input_image, target, generator_optimizer, discriminator_optimizer)
             epoch_gen_loss += gen_total_loss
@@ -197,11 +206,10 @@ def model_fit(train_ds, val_ds, hyperparams, checkpoint_prefix):
 
         print(f'Epoch {epoch+1}, Gen Loss: {gen_losses[-1]}, Disc Loss: {disc_losses[-1]}, Val Gen Loss: {val_gen_losses[-1]}, Val PSNR: {val_psnrs[-1]}, Time: {time.time() - start}')
 
-        # Early stopping
-        early_stopping.on_epoch_end(epoch, logs={'val_loss': val_gen_loss})
-
-        # Model checkpointing
-        model_checkpoint.on_epoch_end(epoch, logs={'val_loss': val_gen_loss})
+        # Early stopping logic
+        if len(val_gen_losses) > 1 and val_gen_losses[-1] > val_gen_losses[-2]:
+            print("Early stopping triggered")
+            break
 
     return gen_losses, disc_losses, val_gen_losses, val_psnrs
 

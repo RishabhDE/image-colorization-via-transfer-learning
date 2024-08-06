@@ -38,6 +38,10 @@ def create_dataset(gray_image_paths, lab_image_paths, target_size=(256, 256), ba
     gray_image_paths = tf.constant(gray_image_paths, dtype=tf.string)
     lab_image_paths = tf.constant(lab_image_paths, dtype=tf.string)
     
+    # Check if paths are correctly loaded
+    if len(gray_image_paths) == 0 or len(lab_image_paths) == 0:
+        raise ValueError("No image paths provided.")
+    
     # Define the dataset from image paths
     dataset = tf.data.Dataset.from_tensor_slices((gray_image_paths, lab_image_paths))
     
@@ -50,10 +54,16 @@ def create_dataset(gray_image_paths, lab_image_paths, target_size=(256, 256), ba
         )
         gray_img.set_shape([target_size[0], target_size[1], 1])
         lab_img.set_shape([target_size[0], target_size[1], 3])
+        
+        # Debugging print statements
+        print(f"Gray image shape: {gray_img.shape}")
+        print(f"LAB image shape: {lab_img.shape}")
+        
         return gray_img, lab_img
     
     dataset = dataset.map(map_fn, num_parallel_calls=tf.data.AUTOTUNE)
     dataset = dataset.batch(batch_size).prefetch(tf.data.AUTOTUNE)
+    
     return dataset
 
 # # Extract edges from an image
