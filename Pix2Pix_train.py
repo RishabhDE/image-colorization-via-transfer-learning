@@ -29,8 +29,8 @@ hyperparams = {
 
 # Define Data Directory
 dir_path = 'data'
-color_dir = os.path.join(dir_path, 'train_color')[:32]
-black_dir = os.path.join(dir_path, 'train_black')[:32]
+color_dir = os.path.join(dir_path, 'train_color')
+black_dir = os.path.join(dir_path, 'train_black')
 
 # List all images
 color_images_paths = glob.glob(os.path.join(color_dir, '*.jpg'))
@@ -80,48 +80,18 @@ if latest_checkpoint:
 else:
     print("Starting fresh training")
 
-# Training function without validation
-def model_fit(train_ds, hyperparams, checkpoint_prefix):
-    gen_losses = []
-    disc_losses = []
-
-    for epoch in range(hyperparams['epochs']):
-        start = time.time()
-        epoch_gen_loss = 0
-        epoch_disc_loss = 0
-
-        # Progress bar
-        progbar = tf.keras.utils.Progbar(len(train_ds), stateful_metrics=['loss'])
-
-        for step, (input_image, target) in enumerate(train_ds):
-            gen_total_loss, disc_loss = train_step(generator, discriminator, input_image, target, generator_optimizer, discriminator_optimizer)
-            epoch_gen_loss += gen_total_loss
-            epoch_disc_loss += disc_loss
-
-            # Update progress bar
-            progbar.update(step + 1, [('gen_loss', gen_total_loss), ('disc_loss', disc_loss)])
-
-        gen_losses.append(epoch_gen_loss / len(train_ds))
-        disc_losses.append(epoch_disc_loss / len(train_ds))
-
-        # Save checkpoint
-        checkpoint.save(file_prefix=checkpoint_prefix)
-
-        print(f'Epoch {epoch+1}, Gen Loss: {gen_losses[-1]}, Disc Loss: {disc_losses[-1]}, Time: {time.time() - start}')
-
-        # Early stopping logic
-        if len(gen_losses) > 1 and gen_losses[-1] > gen_losses[-2]:
-            print("Early stopping triggered")
-            break
-
-    return gen_losses, disc_losses
-
 # Train the model
 gen_losses, disc_losses = model_fit(dataset, hyperparams, checkpoint_prefix)
 
+
+# Define the directory path
+model_dir = './Trained_models'
+
+# Create the directory if it doesn't exist
+os.makedirs(model_dir, exist_ok=True)
 # Save the models
-generator.save('pix2pix_model_generator.keras')
-discriminator.save('pix2pix_model_discriminator.keras')
+generator.save('./Trained_models/pix2pix_model_generator.keras')
+discriminator.save('./Trained_models/pix2pix_model_discriminator.keras')
 
 # Visualize losses
 def visualize_losses(gen_losses, disc_losses):

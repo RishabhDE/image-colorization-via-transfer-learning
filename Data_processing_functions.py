@@ -54,47 +54,11 @@ def create_dataset(gray_image_paths, lab_image_paths, target_size=(256, 256), ba
         )
         gray_img.set_shape([target_size[0], target_size[1], 1])
         lab_img.set_shape([target_size[0], target_size[1], 3])
-        
-        # Debugging print statements
-        print(f"Gray image shape: {gray_img.shape}")
-        print(f"LAB image shape: {lab_img.shape}")
-        
         return gray_img, lab_img
     
     dataset = dataset.map(map_fn, num_parallel_calls=tf.data.AUTOTUNE)
+    dataset = dataset.cache()  # Add caching
+    dataset = dataset.shuffle(buffer_size=100)  # Adjust buffer size if needed
     dataset = dataset.batch(batch_size).prefetch(tf.data.AUTOTUNE)
     
     return dataset
-
-# # Extract edges from an image
-# def extract_edges(image):
-#     edges = cv2.Canny((image * 255).astype(np.uint8), 100, 200)
-#     return edges / 255.0
-
-# # Process a single grayscale image: extract edges and combine with the original image
-# def process_single_image(gray_image):
-#     edges = extract_edges(gray_image)
-#     edges = tf.convert_to_tensor(edges, dtype=tf.float32)[..., tf.newaxis]
-#     combined = tf.concat([tf.expand_dims(gray_image, axis=-1), edges], axis=-1)
-#     return combined
-
-# # Combine grayscale image with edges
-# def combine_gray_and_edges(gray_img, lab_img):
-#     combined_images = []
-#     for i in range(gray_img.shape[0]):
-#         single_gray = gray_img[i].numpy()  # Convert to NumPy array
-#         combined_images.append(process_single_image(single_gray))
-#     combined_batch = tf.stack(combined_images, axis=0)
-#     return combined_batch, lab_img
-
-# # Create dataset with edges
-# def create_dataset_with_edges(original_dataset):
-#     dataset_with_edges = original_dataset.map(
-#         lambda gray_img, lab_img: tf.py_function(
-#             func=lambda x, y: combine_gray_and_edges(x, y),
-#             inp=[gray_img, lab_img],
-#             Tout=[tf.float32, tf.float32]
-#         ),
-#         num_parallel_calls=tf.data.AUTOTUNE
-#     )
-#     return dataset_with_edges
