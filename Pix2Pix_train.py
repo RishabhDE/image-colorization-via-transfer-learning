@@ -19,12 +19,12 @@ hyperparams = {
     'dropout_rate': 0.5,
     'batch_norm': True,
     'lambda_l1': 100,
-    'learning_rate': 1e-3,
+    'learning_rate': 2e-4,
     'beta_1': 0.5,
-    'batch_size': 32,
+    'batch_size': 1,
     'epochs': 50,
     'dropout': True,
-    'input_shape': (256, 256, 1)
+    'input_shape': (512, 512, 1)
 }
 
 # Define Data Directory

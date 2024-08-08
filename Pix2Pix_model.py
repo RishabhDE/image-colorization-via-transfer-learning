@@ -16,12 +16,12 @@ hyperparams = {
     'dropout_rate': 0.5,
     'batch_norm': True,
     'lambda_l1': 100,
-    'learning_rate': 1e-3,
+    'learning_rate': 2e-4,
     'beta_1': 0.5,
     'batch_size': 1,
     'epochs': 50,
     'dropout': True,
-    'input_shape': (256, 256, 1)
+    'input_shape': (512, 512, 1)
 }
 
 # Define the downsampling and upsampling blocks
@@ -131,7 +131,7 @@ def train_step(generator, discriminator, input_image, target, generator_optimize
 
     return gen_total_loss, disc_loss
 
-# Training function without validation
+# Training function with early stopping
 def model_fit(train_ds, hyperparams, checkpoint_prefix):
     gen_losses = []
     disc_losses = []
@@ -148,8 +148,18 @@ def model_fit(train_ds, hyperparams, checkpoint_prefix):
                                      discriminator_optimizer=discriminator_optimizer,
                                      generator=generator,
                                      discriminator=discriminator)
+    
+    # Early stopping parameters
+    best_loss = float('inf')
+    patience = 10  # Number of epochs to wait for improvement
+    wait = 0  # Counter for epochs without improvement
+    early_stop = False
 
     for epoch in range(hyperparams['epochs']):
+        if early_stop:
+            print("Early stopping triggered. Training stopped.")
+            break
+
         start = time.time()
         epoch_gen_loss = 0
         epoch_disc_loss = 0
@@ -165,18 +175,25 @@ def model_fit(train_ds, hyperparams, checkpoint_prefix):
             # Update progress bar
             progbar.update(step + 1, [('gen_loss', gen_total_loss), ('disc_loss', disc_loss)])
 
-        gen_losses.append(epoch_gen_loss / len(train_ds))
-        disc_losses.append(epoch_disc_loss / len(train_ds))
+        avg_gen_loss = epoch_gen_loss / len(train_ds)
+        avg_disc_loss = epoch_disc_loss / len(train_ds)
 
-        # Save checkpoint
-        checkpoint.save(file_prefix=checkpoint_prefix)
+        gen_losses.append(avg_gen_loss)
+        disc_losses.append(avg_disc_loss)
 
-        print(f'Epoch {epoch+1}, Gen Loss: {gen_losses[-1]}, Disc Loss: {disc_losses[-1]}, Time: {time.time() - start}')
+        # Check for improvement
+        if avg_gen_loss < best_loss:
+            best_loss = avg_gen_loss
+            wait = 0  # Reset patience counter
+            # Save checkpoint if the model improves
+            checkpoint.save(file_prefix=checkpoint_prefix)
+            print(f"Model improved. Checkpoint saved.")
+        else:
+            wait += 1
+            if wait >= patience:
+                early_stop = True
 
-        # Early stopping logic
-        if len(gen_losses) > 1 and gen_losses[-1] > gen_losses[-2]:
-            print("Early stopping triggered")
-            break
+        print(f'Epoch {epoch+1}, Gen Loss: {avg_gen_loss}, Disc Loss: {avg_disc_loss}, Time: {time.time() - start}')
 
     return gen_losses, disc_losses
 
