@@ -2,25 +2,26 @@ import tensorflow as tf
 import numpy as np
 import cv2
 import os
-import time
 import glob
+import time
+import matplotlib.pyplot as plt
 from tensorflow.keras.layers import Input, Conv2D, Conv2DTranspose, concatenate, BatchNormalization, LeakyReLU, ReLU
 from tensorflow.keras.models import Model
-import matplotlib.pyplot as plt
 
+# Hyperparameters
 hyperparams = {
-    'initial_filters': 64,         # Starting number of filters in the first layer
-    'kernel_size': 5,              # Size of the convolutional kernel
-    'num_layers': 6,               # Number of convolutional layers
-    'dropout_rate': 0.5,           # Dropout rate for regularization
-    'batch_norm': True,            # Use of batch normalization
-    'lambda_l1': 100,              # L1 regularization parameter
-    'learning_rate': 2e-4,         # Learning rate for the optimizer
-    'beta_1': 0.5,                 # Beta1 hyperparameter for the Adam optimizer
-    'batch_size': 1,               # Batch size for training
-    'epochs': 100,                 # Number of epochs for training
-    'dropout': True,               # Whether to use dropout
-    'input_shape': (256, 256, 1)   # Input shape of the images (3 channels for RGB)
+    'initial_filters': 48,
+    'kernel_size': 5,
+    'num_layers': 5,
+    'dropout_rate': 0.5,
+    'batch_norm': True,
+    'lambda_l1': 100,
+    'learning_rate': 1e-3,
+    'beta_1': 0.5,
+    'batch_size': 1,
+    'epochs': 50,
+    'dropout': True,
+    'input_shape': (256, 256, 1)
 }
 
 # Define the downsampling and upsampling blocks
@@ -66,7 +67,6 @@ def Generator(hyperparams):
     x = last(x)
 
     return tf.keras.Model(inputs=inputs, outputs=x)
-
 
 # Define the Discriminator model
 def Discriminator(hyperparams):
@@ -131,31 +131,10 @@ def train_step(generator, discriminator, input_image, target, generator_optimize
 
     return gen_total_loss, disc_loss
 
-# Define the evaluation function
-def evaluate_model(dataset, generator, discriminator):
-    total_gen_loss = 0
-    total_psnr = 0
-    num_batches = 0
-    for input_image, target in dataset:
-        gen_output = generator(input_image, training=False)
-        disc_generated_output = discriminator([input_image, gen_output], training=False)
-        gen_total_loss, _, _ = generator_loss(disc_generated_output, gen_output, target)
-        total_gen_loss += gen_total_loss
-
-        # Compute PSNR
-        psnr_value = psnr_metric(target, gen_output)
-        total_psnr += psnr_value
-        num_batches += 1
-    avg_gen_loss = total_gen_loss / num_batches
-    avg_psnr = total_psnr / num_batches
-    return avg_gen_loss, avg_psnr
-
-# Training function with validation loss
-def model_fit(train_ds, val_ds, hyperparams, checkpoint, checkpoint_prefix):
+# Training function without validation
+def model_fit(train_ds, hyperparams, checkpoint_prefix):
     gen_losses = []
     disc_losses = []
-    val_gen_losses = []
-    val_psnrs = []
 
     generator = Generator(hyperparams)
     discriminator = Discriminator(hyperparams)
@@ -164,6 +143,12 @@ def model_fit(train_ds, val_ds, hyperparams, checkpoint, checkpoint_prefix):
     generator_optimizer = tf.keras.optimizers.Adam(learning_rate=hyperparams['learning_rate'], beta_1=hyperparams['beta_1'])
     discriminator_optimizer = tf.keras.optimizers.Adam(learning_rate=hyperparams['learning_rate'], beta_1=hyperparams['beta_1'])
 
+    # Define checkpoints
+    checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
+                                     discriminator_optimizer=discriminator_optimizer,
+                                     generator=generator,
+                                     discriminator=discriminator)
+
     for epoch in range(hyperparams['epochs']):
         start = time.time()
         epoch_gen_loss = 0
@@ -171,7 +156,7 @@ def model_fit(train_ds, val_ds, hyperparams, checkpoint, checkpoint_prefix):
 
         # Progress bar
         progbar = tf.keras.utils.Progbar(len(train_ds), stateful_metrics=['loss'])
-        
+
         for step, (input_image, target) in enumerate(train_ds):
             gen_total_loss, disc_loss = train_step(generator, discriminator, input_image, target, generator_optimizer, discriminator_optimizer)
             epoch_gen_loss += gen_total_loss
@@ -183,38 +168,30 @@ def model_fit(train_ds, val_ds, hyperparams, checkpoint, checkpoint_prefix):
         gen_losses.append(epoch_gen_loss / len(train_ds))
         disc_losses.append(epoch_disc_loss / len(train_ds))
 
-        val_gen_loss, val_psnr = evaluate_model(val_ds, generator, discriminator)
-        val_gen_losses.append(val_gen_loss)
-        val_psnrs.append(val_psnr)
-
         # Save checkpoint
         checkpoint.save(file_prefix=checkpoint_prefix)
 
-        print(f'Epoch {epoch+1}, Gen Loss: {gen_losses[-1]}, Disc Loss: {disc_losses[-1]}, Val Gen Loss: {val_gen_losses[-1]}, Val PSNR: {val_psnrs[-1]}, Time: {time.time() - start}')
+        print(f'Epoch {epoch+1}, Gen Loss: {gen_losses[-1]}, Disc Loss: {disc_losses[-1]}, Time: {time.time() - start}')
 
-    return gen_losses, disc_losses, val_gen_losses, val_psnrs
+        # Early stopping logic
+        if len(gen_losses) > 1 and gen_losses[-1] > gen_losses[-2]:
+            print("Early stopping triggered")
+            break
+
+    return gen_losses, disc_losses
 
 # Visualize losses
-def visualize_losses(gen_losses, disc_losses, val_gen_losses, val_psnrs):
+def visualize_losses(gen_losses, disc_losses):
     plt.figure(figsize=(12, 6))
     
     # Plot Generator and Discriminator Losses
-    plt.subplot(1, 2, 1)
+    plt.subplot(1, 1, 1)
     plt.plot(gen_losses, label='Generator Loss')
     plt.plot(disc_losses, label='Discriminator Loss')
-    plt.plot(val_gen_losses, label='Validation Generator Loss')
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
     plt.legend()
     plt.title('Generator and Discriminator Losses')
-
-    # Plot Validation PSNR
-    plt.subplot(1, 2, 2)
-    plt.plot(val_psnrs, label='Validation PSNR')
-    plt.xlabel('Epoch')
-    plt.ylabel('PSNR')
-    plt.legend()
-    plt.title('Validation PSNR')
 
     plt.tight_layout()
     plt.show()

@@ -2,15 +2,30 @@ import tensorflow as tf
 import numpy as np
 import cv2
 import os
-import glob
 import time
-import matplotlib.pyplot as plt
-from PIL import Image
+import glob
 from tensorflow.keras.layers import Input, Conv2D, Conv2DTranspose, concatenate, BatchNormalization, LeakyReLU, ReLU
 from tensorflow.keras.models import Model
+import matplotlib.pyplot as plt
 
 from Data_processing_functions import *
 from Pix2Pix_model import *
+
+# Hyperparameters
+hyperparams = {
+    'initial_filters': 48,
+    'kernel_size': 5,
+    'num_layers': 5,
+    'dropout_rate': 0.5,
+    'batch_norm': True,
+    'lambda_l1': 100,
+    'learning_rate': 1e-3,
+    'beta_1': 0.5,
+    'batch_size': 32,
+    'epochs': 50,
+    'dropout': True,
+    'input_shape': (256, 256, 1)
+}
 
 # Define Data Directory
 dir_path = 'data'
@@ -21,37 +36,15 @@ black_dir = os.path.join(dir_path, 'train_black')
 color_images_paths = glob.glob(os.path.join(color_dir, '*.jpg'))
 black_images_paths = glob.glob(os.path.join(black_dir, '*.jpg'))
 
-# Create the original dataset
-dataset = create_dataset(black_images_paths, color_images_paths, target_size=(256, 256))
+# Ensure there are images in both directories
+if not color_images_paths or not black_images_paths:
+    raise ValueError("No images found in one or both directories.")
 
-# Calculate the total number of elements in the dataset
-total_size = len(color_images_paths)
-train_size = int(total_size * 0.9)
-val_size = total_size - train_size
+# Create dataset
+dataset = create_dataset(black_images_paths, color_images_paths, target_size=(256, 256), batch_size=hyperparams['batch_size'])
 
 # Shuffle the dataset
-dataset = dataset.shuffle(buffer_size=total_size)
-
-# Split dataset into training and validation
-train_dataset = dataset.take(train_size)
-val_dataset = dataset.skip(train_size).take(val_size)
-
-# Example hyperparameters for testing
-# Hyperparameters
-hyperparams = {
-    'initial_filters': 64,         # Starting number of filters in the first layer
-    'kernel_size': 5,              # Size of the convolutional kernel
-    'num_layers': 6,               # Number of convolutional layers
-    'dropout_rate': 0.5,           # Dropout rate for regularization
-    'batch_norm': True,            # Use of batch normalization
-    'lambda_l1': 100,              # L1 regularization parameter
-    'learning_rate': 2e-4,         # Learning rate for the optimizer
-    'beta_1': 0.5,                 # Beta1 hyperparameter for the Adam optimizer
-    'batch_size': 1,               # Batch size for training
-    'epochs': 100,                 # Number of epochs for training
-    'dropout': True,               # Whether to use dropout
-    'input_shape': (256, 256, 1)   # Input shape of the images (3 channels for RGB)
-}
+dataset = dataset.shuffle(buffer_size=len(color_images_paths), reshuffle_each_iteration=True)
 
 # Initialize models
 generator = Generator(hyperparams)
@@ -64,8 +57,7 @@ generator.summary()
 print("\nDiscriminator Summary:")
 discriminator.summary()
 
-
-# Define the optimizer
+# Define the optimizers
 generator_optimizer = tf.keras.optimizers.Adam(learning_rate=hyperparams['learning_rate'], beta_1=hyperparams['beta_1'])
 discriminator_optimizer = tf.keras.optimizers.Adam(learning_rate=hyperparams['learning_rate'], beta_1=hyperparams['beta_1'])
 
@@ -89,11 +81,31 @@ else:
     print("Starting fresh training")
 
 # Train the model
-gen_losses, disc_losses, val_gen_losses, val_psnrs = model_fit(train_dataset, val_dataset, hyperparams, checkpoint, checkpoint_prefix)
+gen_losses, disc_losses = model_fit(dataset, hyperparams, checkpoint_prefix)
 
+
+# Define the directory path
+model_dir = './Trained_models'
+
+# Create the directory if it doesn't exist
+os.makedirs(model_dir, exist_ok=True)
 # Save the models
-generator.save('pix2pix_model_generator.h5')
-discriminator.save('pix2pix_model_discriminator.h5')
+generator.save('./Trained_models/pix2pix_model_generator.keras')
+discriminator.save('./Trained_models/pix2pix_model_discriminator.keras')
 
 # Visualize losses
-visualize_losses(gen_losses, disc_losses, val_gen_losses, val_psnrs)
+def visualize_losses(gen_losses, disc_losses):
+    plt.figure(figsize=(12, 6))
+    
+    # Plot Generator and Discriminator Losses
+    plt.plot(gen_losses, label='Generator Loss')
+    plt.plot(disc_losses, label='Discriminator Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.title('Generator and Discriminator Losses')
+
+    plt.tight_layout()
+    plt.show()
+
+visualize_losses(gen_losses, disc_losses)
