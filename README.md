@@ -19,7 +19,7 @@ This project aims to colorize black and white images using deep learning techniq
 
 1. Clone the repository:
     ```sh
-    git clone [<repository_url>](https://github.com/RishabhDE/image-colorization-via-transfer-learning.git)
+    git clone https://github.com/RishabhDE/image-colorization-via-transfer-learning.git
     ```
 2. Navigate to the project directory:
     ```sh
